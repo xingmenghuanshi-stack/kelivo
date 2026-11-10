@@ -1,0 +1,66 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 配置 Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 安装稳定版 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: 补全密钥占位文件
+        run: |
+          mkdir -p lib/secrets
+          printf "const String siliconflowFallbackKey = '';\n" > lib/secrets/fallback.dart
+
+      - name: 恢复测试签名
+        uses: actions/cache@v4
+        with:
+          path: android/app/kelivo-test.jks
+          key: kelivo-test-keystore-v1
+
+      - name: 准备测试签名
+        run: |
+          if [ ! -f android/app/kelivo-test.jks ]; then
+            keytool -genkeypair -v \
+              -keystore android/app/kelivo-test.jks \
+              -storepass kelivo123 -keypass kelivo123 \
+              -alias kelivo -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Kelivo Test, OU=Dev, O=Dev, L=NA, ST=NA, C=CN"
+          fi
+          printf "storeFile=kelivo-test.jks\nstorePassword=kelivo123\nkeyAlias=kelivo\nkeyPassword=kelivo123\n" > android/key.properties
+          echo "签名配置已就绪"
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 构建 arm64 安装包
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: 重命名产物
+        run: |
+          mkdir -p out
+          cp build/app/outputs/flutter-apk/app-release.apk out/Kelivo-arm64-release.apk
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kelivo-arm64
+          path: out/Kelivo-arm64-release.apk
