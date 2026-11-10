@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.view.Display
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.Executors
 
 /**
@@ -85,12 +86,17 @@ object ScreenshotHelper {
         quality: Int,
     ): JSONObject {
         val buffer = result.hardwareBuffer
-        val full = try {
+        val hardware = try {
             Bitmap.wrapHardwareBuffer(buffer, result.colorSpace)
-                ?: return error("SCREENSHOT_FAILED", "Screen capture returned no bitmap.")
         } finally {
             buffer.close()
-        }
+        } ?: return error("SCREENSHOT_FAILED", "Screen capture returned no bitmap.")
+
+        // A hardware bitmap becomes unreadable once its buffer is closed, so
+        // copy the pixels out before scaling or compressing.
+        val full = hardware.copy(Bitmap.Config.ARGB_8888, false)
+            ?: return error("SCREENSHOT_FAILED", "Screen capture could not be copied.")
+        hardware.recycle()
 
         val sourceWidth = full.width
         val sourceHeight = full.height
