@@ -197,6 +197,7 @@ class PhoneControlService : AccessibilityService() {
             val action = args.optString("action")
             when (action) {
                 "read_screen" -> complete(readScreen())
+                "screenshot" -> ScreenshotHelper.capture(this, args, complete)
                 "list_apps" -> complete(listApps())
                 "open_app" -> {
                     val name = requiredString(args, "package_name")
